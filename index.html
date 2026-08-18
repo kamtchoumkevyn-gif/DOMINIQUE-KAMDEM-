@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DOMINIQUE KAMDEM - Custom Beat Edit</title>
+  <title>DOMINIQUE KAMDEM - Adaptive Beat Visualizer</title>
   <style>
     * {
       box-sizing: border-box;
@@ -14,16 +14,15 @@
     body {
       background: #02040a;
       color: #ffffff;
-      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       display: flex;
       justify-content: center;
       align-items: center;
       min-height: 100vh;
       overflow: hidden;
-      perspective: 1000px;
     }
 
-    /* Slideshow Layer */
+    /* Fullscreen Background Slideshow */
     .bg-slideshow {
       position: absolute;
       top: 0;
@@ -42,9 +41,9 @@
       height: 100%;
       object-fit: cover;
       opacity: 0;
-      filter: brightness(0.5) contrast(1.1);
+      filter: brightness(0.55) contrast(1.1);
       transform: scale(1);
-      transition: opacity 0.01s flat;
+      transition: opacity 0.35s cubic-bezier(0.25, 1, 0.5, 1), transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
     }
 
     .bg-slideshow img.active {
@@ -52,17 +51,17 @@
       transform: scale(1.05);
     }
 
-    /* Fast Punch Zoom on Beat Hits */
-    .bg-slideshow img.beat-punch {
-      animation: capcutPunch 0.15s cubic-bezier(0, 0.9, 0.1, 1) forwards;
+    /* Dynamic Beat Punch Snap */
+    .bg-slideshow img.beat-snap {
+      animation: snapZoom 0.2s cubic-bezier(0, 0.9, 0.1, 1) forwards;
     }
 
-    @keyframes capcutPunch {
-      0% { transform: scale(1.25) rotate(-1.5deg); filter: brightness(0.9) contrast(1.4); }
-      100% { transform: scale(1.05) rotate(0deg); filter: brightness(0.5) contrast(1.1); }
+    @keyframes snapZoom {
+      0% { transform: scale(1.18); filter: brightness(0.85) contrast(1.3); }
+      100% { transform: scale(1.05); filter: brightness(0.55) contrast(1.1); }
     }
 
-    /* Flash Overlay */
+    /* Flash Overlay for High Energy Beats */
     #flash-overlay {
       position: absolute;
       top: 0;
@@ -73,10 +72,10 @@
       opacity: 0;
       z-index: 1;
       pointer-events: none;
-      transition: opacity 0.04s ease-out;
+      transition: opacity 0.05s ease-out;
     }
 
-    /* Particle Canvas */
+    /* Interactive Particle Canvas */
     #particle-canvas {
       position: absolute;
       top: 0;
@@ -87,20 +86,21 @@
       pointer-events: none;
     }
 
-    /* Interface Layer */
+    /* Main Non-Overlapping Container Stack */
     .container {
       position: relative;
       text-align: center;
       z-index: 3;
       width: 100%;
-      padding: 0 10px;
+      padding: 0 15px;
       display: flex;
       flex-direction: column;
       align-items: center;
+      justify-content: center;
+      gap: 15px;
     }
 
     .controls-wrapper {
-      margin-bottom: 1.5rem;
       display: flex;
       flex-wrap: wrap;
       gap: 12px;
@@ -121,6 +121,7 @@
       font-size: 0.85rem;
       font-weight: 600;
       backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
       transition: background 0.2s, transform 0.1s;
     }
 
@@ -131,21 +132,20 @@
 
     audio {
       filter: invert(0.9) hue-rotate(180deg);
-      opacity: 0.8;
-      max-width: 90%;
+      opacity: 0.85;
+      width: 100%;
+      max-width: 320px;
     }
 
+    /* Animated Frequency Title Text */
     #wave-text {
-      font-size: clamp(1.4rem, 5.5vw, 4.5rem);
+      font-size: clamp(1.2rem, 5vw, 3.5rem);
       font-weight: 900;
       display: flex;
       justify-content: center;
       align-items: center;
       gap: 0.15rem;
-      width: 100%;
-      transform: rotateX(10deg);
-      transform-style: preserve-3d;
-      position: relative;
+      margin-top: 10px;
     }
 
     #wave-text span {
@@ -155,16 +155,15 @@
     }
 
     #wave-text span.space {
-      width: 0.8em;
+      width: 0.6em;
     }
   </style>
 </head>
 <body>
 
-  <!-- Dynamic Slideshow Container -->
   <div class="bg-slideshow" id="slideshow-container">
-    <img src="https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1200" class="active" alt="Default 1">
-    <img src="https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=1200" alt="Default 2">
+    <img src="https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1200" class="active" alt="Default Image 1">
+    <img src="https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=1200" alt="Default Image 2">
   </div>
 
   <div id="flash-overlay"></div>
@@ -183,7 +182,7 @@
       <input type="file" id="audio-file" accept="audio/*">
     </div>
 
-    <audio id="audio" controls></audio>
+    <audio id="audio" controls crossorigin="anonymous"></audio>
 
     <div id="wave-text">
       <span>D</span><span>O</span><span>M</span><span>I</span><span>N</span><span>I</span><span>Q</span><span>U</span><span>E</span>
@@ -203,15 +202,21 @@
     const flashOverlay = document.getElementById('flash-overlay');
 
     let slides = document.querySelectorAll('.bg-slideshow img');
-    let audioContext, analyser, source, dataArray;
-    let isInitialized = false;
-    let particles = [];
     let currentSlide = 0;
-    let lastBeatTime = 0;
     let baseHue = 0;
+    let particles = [];
 
-    let energyHistory = [];
-    const HISTORY_SIZE = 30; 
+    // Web Audio Engine
+    let audioCtx, analyser, source, freqData;
+    let isAudioSetup = false;
+
+    // Adaptive Tempo Engine Variables
+    let energyBuffer = [];
+    const BUFFER_SIZE = 45;
+    let beatIntervals = [];
+    let adaptiveInterval = 2000; // Fallback interval
+    let lastBeatTime = 0;
+    let lastTransitionTime = 0;
 
     function resizeCanvas() {
       canvas.width = window.innerWidth;
@@ -220,20 +225,46 @@
     window.addEventListener('resize', resizeCanvas);
     resizeCanvas();
 
-    // Audio Loader
-    audioFileInput.addEventListener('change', function() {
-      const files = this.files;
-      if (files.length === 0) return;
-      audioElement.src = URL.createObjectURL(files[0]);
-      audioElement.play();
-    });
+    function setupWebAudio() {
+      if (isAudioSetup) return;
+      try {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.3;
 
-    // Custom Image Loader
+        source = audioCtx.createMediaElementSource(audioElement);
+        source.connect(analyser);
+        analyser.connect(audioCtx.destination);
+
+        freqData = new Uint8Array(analyser.frequencyBinCount);
+        isAudioSetup = true;
+      } catch (e) {
+        console.warn("Audio Context initialized error:", e);
+      }
+    }
+
+    function triggerNextSlide(hue) {
+      if (slides.length === 0) return;
+
+      slides[currentSlide].classList.remove('active', 'beat-snap');
+      currentSlide = (currentSlide + 1) % slides.length;
+
+      const activeSlide = slides[currentSlide];
+      void activeSlide.offsetWidth; // Trigger reflow for animation restart
+      activeSlide.classList.add('active', 'beat-snap');
+
+      flashOverlay.style.background = `hsla(${hue}, 100%, 80%, 0.25)`;
+      flashOverlay.style.opacity = '1';
+      setTimeout(() => { flashOverlay.style.opacity = '0'; }, 60);
+    }
+
     imageFileInput.addEventListener('change', function() {
       const files = this.files;
       if (files.length === 0) return;
 
       slideshowContainer.innerHTML = '';
+      currentSlide = 0;
 
       Array.from(files).forEach((file, idx) => {
         const img = document.createElement('img');
@@ -243,16 +274,30 @@
       });
 
       slides = document.querySelectorAll('.bg-slideshow img');
-      currentSlide = 0;
+    });
+
+    audioFileInput.addEventListener('change', function() {
+      if (this.files.length > 0) {
+        audioElement.src = URL.createObjectURL(this.files[0]);
+        audioElement.play();
+      }
+    });
+
+    audioElement.addEventListener('play', () => {
+      setupWebAudio();
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      renderLoop();
     });
 
     class Particle {
       constructor(x, y, hue) {
-        this.x = x + (Math.random() - 0.5) * 15;
+        this.x = x + (Math.random() - 0.5) * 12;
         this.y = y;
         this.size = Math.random() * 2.5 + 1;
-        this.speedY = Math.random() * 3 + 2;
-        this.speedX = (Math.random() - 0.5) * 1.5;
+        this.speedY = Math.random() * 2.5 + 1.5;
+        this.speedX = (Math.random() - 0.5) * 1.2;
         this.hue = hue;
         this.opacity = 1;
       }
@@ -260,7 +305,7 @@
       update() {
         this.y += this.speedY;
         this.x += this.speedX;
-        this.opacity -= 0.025;
+        this.opacity -= 0.022;
       }
 
       draw() {
@@ -271,113 +316,83 @@
       }
     }
 
-    function switchSlide(hue) {
-      if (slides.length === 0) return;
-
-      slides[currentSlide].classList.remove('active', 'beat-punch');
-      currentSlide = (currentSlide + 1) % slides.length;
-
-      const nextSlide = slides[currentSlide];
-      void nextSlide.offsetWidth; 
-      nextSlide.classList.add('active', 'beat-punch');
-
-      flashOverlay.style.background = `hsla(${hue}, 100%, 90%, 0.35)`;
-      flashOverlay.style.opacity = '1';
-      setTimeout(() => { flashOverlay.style.opacity = '0'; }, 40);
-    }
-
-    audioElement.addEventListener('play', () => {
-      if (!isInitialized) {
-        setupAudioContext();
-        isInitialized = true;
-      }
-      if (audioContext && audioContext.state === 'suspended') {
-        audioContext.resume();
-      }
-      renderFrame();
-    });
-
-    function setupAudioContext() {
-      try {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        analyser = audioContext.createAnalyser();
-        analyser.fftSize = 128;
-        analyser.smoothingTimeConstant = 0.0; 
-
-        source = audioContext.createMediaElementSource(audioElement);
-        source.connect(analyser);
-        analyser.connect(audioContext.destination);
-
-        dataArray = new Uint8Array(analyser.frequencyBinCount);
-      } catch (e) {
-        console.warn("Audio Context setup error:", e);
-      }
-    }
-
-    function renderFrame() {
+    function renderLoop() {
       if (audioElement.paused) return;
 
-      baseHue = (baseHue + 1) % 360;
-      const now = Date.now();
-      let isBeat = false;
+      const now = performance.now();
+      baseHue = (baseHue + 0.8) % 360;
 
-      if (analyser && dataArray) {
-        analyser.getByteFrequencyData(dataArray);
+      let currentBassEnergy = 0;
 
-        const currentBass = (dataArray[0] + dataArray[1] + dataArray[2] + dataArray[3]) / 4;
-        const averageEnergy = energyHistory.length > 0 
-          ? energyHistory.reduce((a, b) => a + b, 0) / energyHistory.length 
-          : 0;
+      if (isAudioSetup && analyser && freqData) {
+        analyser.getByteFrequencyData(freqData);
 
-        if (currentBass > 50 && currentBass > averageEnergy * 1.35) {
-          isBeat = true;
+        // Low frequency spectrum analysis
+        currentBassEnergy = (freqData[0] + freqData[1] + freqData[2] + freqData[3] + freqData[4]) / 5;
+
+        // Calculate average background energy dynamically
+        const avgEnergy = energyBuffer.length > 0 
+          ? energyBuffer.reduce((a, b) => a + b, 0) / energyBuffer.length 
+          : 100;
+
+        const dynamicThreshold = Math.max(70, avgEnergy * 1.25);
+
+        // Transient Hit Detection Logic
+        if (currentBassEnergy > dynamicThreshold && (now - lastBeatTime > 220)) {
+          const delta = now - lastBeatTime;
+          lastBeatTime = now;
+
+          if (delta < 2000) {
+            beatIntervals.push(delta);
+            if (beatIntervals.length > 8) beatIntervals.shift();
+
+            const avgInterval = beatIntervals.reduce((a, b) => a + b, 0) / beatIntervals.length;
+            adaptiveInterval = avgInterval > 600 ? avgInterval * 2 : avgInterval * 4;
+          }
         }
 
-        energyHistory.push(currentBass);
-        if (energyHistory.length > HISTORY_SIZE) {
-          energyHistory.shift();
-        }
+        energyBuffer.push(currentBassEnergy);
+        if (energyBuffer.length > BUFFER_SIZE) energyBuffer.shift();
       }
 
-      if (isBeat && (now - lastBeatTime > 140)) {
-        switchSlide(baseHue);
-        lastBeatTime = now;
+      // Check adaptive interval timer
+      if (now - lastTransitionTime >= adaptiveInterval) {
+        triggerNextSlide(baseHue);
+        lastTransitionTime = now;
       }
 
-      ctx.fillStyle = 'rgba(2, 4, 10, 0.25)';
+      // Clear & redraw canvas frame
+      ctx.fillStyle = 'rgba(2, 4, 10, 0.22)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+      // Render letter wave spectrum & particle generation
       letters.forEach((letter, index) => {
         let intensity = 0.2;
 
-        if (analyser && dataArray) {
-          const binIndex = Math.floor((index / letters.length) * (dataArray.length / 2));
-          const frequencyValue = dataArray[binIndex] || 0;
-          intensity = frequencyValue / 255;
+        if (isAudioSetup && freqData) {
+          const binIndex = Math.floor((index / letters.length) * (freqData.length / 2));
+          intensity = (freqData[binIndex] || 0) / 255;
+        } else {
+          intensity = (Math.sin(now * 0.004 + index * 0.5) + 1) / 2;
         }
 
-        const letterHue = (baseHue + index * 12 + intensity * 60) % 360;
-        const translateY = intensity * -45;
+        const letterHue = (baseHue + index * 14 + intensity * 40) % 360;
+        const translateY = intensity * -38;
         const baseColor = `hsl(${letterHue}, 100%, 75%)`;
 
-        letter.style.transform = `translateY(${translateY}px) scale(${1 + intensity * 0.2})`;
+        letter.style.transform = `translateY(${translateY}px) scale(${1 + intensity * 0.15})`;
         letter.style.color = baseColor;
-        letter.style.textShadow = `
-          0 0 ${10 + intensity * 20}px ${baseColor},
-          0 0 ${25 + intensity * 35}px hsl(${letterHue}, 100%, 50%)
-        `;
+        letter.style.textShadow = `0 0 ${10 + intensity * 20}px ${baseColor}`;
 
-        if (intensity > 0.15) {
+        if (intensity > 0.3) {
           const rect = letter.getBoundingClientRect();
-          const spawnX = rect.left + rect.width / 2;
-          const spawnY = rect.bottom;
-
-          for (let i = 0; i < Math.floor(intensity * 3); i++) {
-            particles.push(new Particle(spawnX, spawnY, letterHue));
+          for (let i = 0; i < Math.floor(intensity * 2); i++) {
+            particles.push(new Particle(rect.left + rect.width / 2, rect.bottom, letterHue));
           }
         }
       });
 
+      // Update particle physics
       for (let i = particles.length - 1; i >= 0; i--) {
         particles[i].update();
         particles[i].draw();
@@ -386,7 +401,7 @@
         }
       }
 
-      requestAnimationFrame(renderFrame);
+      requestAnimationFrame(renderLoop);
     }
   </script>
 </body>
