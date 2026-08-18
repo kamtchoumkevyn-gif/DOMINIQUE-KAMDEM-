@@ -1,393 +1,451 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DOMINIQUE KAMDEM - Music Sync Visualizer</title>
-  <style>
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Dominique Kamdem — Visualizer</title>
+<style>
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;padding:0;width:100%;height:100%;
+    background:#02040a;
+    overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    -webkit-tap-highlight-color:transparent;
+  }
 
-    body {
-      background: #02040a;
-      color: #ffffff;
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-      overflow: hidden;
-    }
+  #slideshow{position:fixed;inset:0;z-index:1;background:#02040a;overflow:hidden;}
+  .photo-layer{
+    position:absolute;inset:0;
+    background-size:cover;background-position:center;background-repeat:no-repeat;
+    opacity:0;
+    transform-origin:center center;
+    will-change:opacity, transform, filter;
+  }
+  .photo-layer.beat-snap{ animation: beatPunch 260ms ease-out; }
+  @keyframes beatPunch{
+    0%{ filter:brightness(1) saturate(1); transform:scale(1);}
+    35%{ filter:brightness(1.45) saturate(1.3); transform:scale(1.045);}
+    100%{ filter:brightness(1) saturate(1); transform:scale(1);}
+  }
 
-    /* Fullscreen Background Slideshow */
-    .bg-slideshow {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      z-index: 0;
-      overflow: hidden;
-    }
+  #flashOverlay{
+    position:fixed;inset:0;z-index:2;pointer-events:none;
+    background:radial-gradient(circle at 50% 40%, rgba(255,255,255,0.55), rgba(125,211,252,0.15) 45%, transparent 70%);
+    opacity:0;
+    mix-blend-mode:screen;
+  }
 
-    .bg-slideshow img {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      opacity: 0;
-      filter: brightness(0.55) contrast(1.1);
-      transform: scale(1);
-      transition: opacity 0.6s ease-in-out, transform 0.6s ease-in-out;
-    }
+  #particleCanvas{position:fixed;inset:0;z-index:4;pointer-events:none;}
 
-    .bg-slideshow img.active {
-      opacity: 1;
-      transform: scale(1.05);
-    }
+  .ui{
+    position:relative;z-index:10;
+    min-height:100vh;min-height:100dvh;
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:space-between;
+    padding: max(18px, env(safe-area-inset-top)) 16px max(18px, env(safe-area-inset-bottom));
+  }
 
-    /* Beat Pulse Effect */
-    .bg-slideshow img.beat-snap {
-      animation: snapZoom 0.22s cubic-bezier(0, 0.9, 0.1, 1) forwards;
-    }
+  .controls{
+    display:flex;gap:12px;flex-wrap:wrap;justify-content:center;width:100%;
+  }
+  .glass-btn{
+    display:inline-flex;align-items:center;gap:8px;
+    background:rgba(255,255,255,0.08);
+    backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+    border:1px solid rgba(255,255,255,0.18);
+    color:#f5f7ff;font-size:14px;font-weight:600;
+    padding:12px 18px;border-radius:16px;
+    cursor:pointer;user-select:none;
+    box-shadow:0 4px 18px rgba(0,0,0,0.35);
+    transition:transform 150ms ease, background 150ms ease, box-shadow 150ms ease;
+  }
+  .glass-btn:active{transform:scale(0.95);background:rgba(255,255,255,0.16);}
+  input[type="file"]{display:none;}
 
-    @keyframes snapZoom {
-      0% { transform: scale(1.15); filter: brightness(0.85) contrast(1.25); }
-      100% { transform: scale(1.05); filter: brightness(0.55) contrast(1.1); }
-    }
+  .title-wrap{
+    position:absolute;top:50%;left:50%;
+    transform:translate(-50%,-50%);
+    width:92%;max-width:900px;
+    text-align:center;z-index:3;
+    pointer-events:none;
+  }
+  #titleText{
+    display:flex;flex-wrap:wrap;justify-content:center;
+    font-weight:800;letter-spacing:2px;
+    font-size:clamp(22px, 7vw, 56px);
+    line-height:1.1;
+  }
+  #titleText span{
+    display:inline-block;
+    color:#e8ecff;
+    text-shadow:0 0 12px rgba(125,211,252,0.25);
+    will-change:transform, color, text-shadow;
+  }
 
-    #flash-overlay {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: white;
-      opacity: 0;
-      z-index: 1;
-      pointer-events: none;
-      transition: opacity 0.05s ease-out;
-    }
+  .hint{
+    color:rgba(255,255,255,0.55);
+    font-size:13px;text-align:center;
+    max-width:280px;margin:10px auto 0;
+  }
 
-    #particle-canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      z-index: 2;
-      pointer-events: none;
-    }
-
-    .container {
-      position: relative;
-      text-align: center;
-      z-index: 3;
-      width: 100%;
-      padding: 0 15px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 15px;
-    }
-
-    .controls-wrapper {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      justify-content: center;
-      align-items: center;
-    }
-
-    input[type="file"] {
-      display: none;
-    }
-
-    .custom-file-upload {
-      background: rgba(255, 255, 255, 0.15);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      padding: 10px 20px;
-      border-radius: 20px;
-      cursor: pointer;
-      font-size: 0.85rem;
-      font-weight: 600;
-      backdrop-filter: blur(5px);
-      -webkit-backdrop-filter: blur(5px);
-      transition: background 0.2s, transform 0.1s;
-    }
-
-    .custom-file-upload:hover {
-      background: rgba(255, 255, 255, 0.3);
-      transform: scale(1.03);
-    }
-
-    audio {
-      filter: invert(0.9) hue-rotate(180deg);
-      opacity: 0.85;
-      width: 100%;
-      max-width: 320px;
-    }
-
-    #wave-text {
-      font-size: clamp(1.2rem, 5vw, 3.5rem);
-      font-weight: 900;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 0.15rem;
-      margin-top: 10px;
-    }
-
-    #wave-text span {
-      display: inline-block;
-      will-change: transform, color, text-shadow;
-      transition: transform 0.02s linear, color 0.02s linear;
-    }
-
-    #wave-text span.space {
-      width: 0.6em;
-    }
-  </style>
+  .bottom-bar{
+    display:flex;flex-direction:column;align-items:center;gap:10px;width:100%;
+  }
+  audio{
+    width:min(92vw, 420px);
+    filter:invert(1) hue-rotate(180deg) brightness(1.05) contrast(1.05);
+    border-radius:12px;
+    background:rgba(255,255,255,0.08);
+    backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  }
+  .file-name{
+    color:rgba(255,255,255,0.5);font-size:11px;max-width:80vw;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+</style>
 </head>
 <body>
 
-  <div class="bg-slideshow" id="slideshow-container">
-    <img src="https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1200" class="active" alt="Default 1">
-    <img src="https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=1200" alt="Default 2">
+<div id="slideshow">
+  <div class="photo-layer" id="layerA"></div>
+  <div class="photo-layer" id="layerB"></div>
+</div>
+<div id="flashOverlay"></div>
+<canvas id="particleCanvas"></canvas>
+
+<div class="ui">
+  <div class="controls">
+    <label class="glass-btn" for="photoInput">🖼️ Upload Photos</label>
+    <input type="file" id="photoInput" accept="image/*" multiple>
+    <label class="glass-btn" for="audioInput">🎵 Choose MP3</label>
+    <input type="file" id="audioInput" accept="audio/*">
   </div>
 
-  <div id="flash-overlay"></div>
-  <canvas id="particle-canvas"></canvas>
-
-  <div class="container">
-    <div class="controls-wrapper">
-      <label for="image-file" class="custom-file-upload">
-        🖼️ Upload Photos
-      </label>
-      <input type="file" id="image-file" accept="image/*" multiple>
-
-      <label for="audio-file" class="custom-file-upload">
-        🎵 Choose MP3
-      </label>
-      <input type="file" id="audio-file" accept="audio/*">
-    </div>
-
-    <audio id="audio" controls crossorigin="anonymous"></audio>
-
-    <div id="wave-text">
-      <span>D</span><span>O</span><span>M</span><span>I</span><span>N</span><span>I</span><span>Q</span><span>U</span><span>E</span>
-      <span class="space">&nbsp;</span>
-      <span>K</span><span>A</span><span>M</span><span>D</span><span>E</span><span>M</span>
-    </div>
+  <div class="title-wrap">
+    <div id="titleText"></div>
+    <div class="hint" id="hint">Upload photos and choose a track to begin</div>
   </div>
 
-  <script>
-    const audioElement = document.getElementById('audio');
-    const audioFileInput = document.getElementById('audio-file');
-    const imageFileInput = document.getElementById('image-file');
-    const slideshowContainer = document.getElementById('slideshow-container');
-    const letters = document.querySelectorAll('#wave-text span:not(.space)');
-    const canvas = document.getElementById('particle-canvas');
-    const ctx = canvas.getContext('2d');
-    const flashOverlay = document.getElementById('flash-overlay');
+  <div class="bottom-bar">
+    <div class="file-name" id="fileName"></div>
+    <audio id="audioPlayer" controls></audio>
+  </div>
+</div>
 
-    let slides = document.querySelectorAll('.bg-slideshow img');
-    let currentSlide = 0;
-    let baseHue = 0;
-    let particles = [];
+<script>
+(function(){
+  'use strict';
 
-    let audioCtx, analyser, source, freqData;
-    let isAudioSetup = false;
+  // ---------- DOM references ----------
+  const photoInput   = document.getElementById('photoInput');
+  const audioInput   = document.getElementById('audioInput');
+  const audioPlayer  = document.getElementById('audioPlayer');
+  const layerA       = document.getElementById('layerA');
+  const layerB       = document.getElementById('layerB');
+  const flashOverlay = document.getElementById('flashOverlay');
+  const canvas       = document.getElementById('particleCanvas');
+  const ctx          = canvas.getContext('2d');
+  const titleTextEl  = document.getElementById('titleText');
+  const hintEl       = document.getElementById('hint');
+  const fileNameEl   = document.getElementById('fileName');
 
-    let energyBuffer = [];
-    const BUFFER_SIZE = 45;
-    let lastBeatTime = 0;
+  // ---------- Build title letters ----------
+  const TITLE = "DOMINIQUE KAMDEM";
+  const letterEls = [];
+  TITLE.split('').forEach((ch) => {
+    const span = document.createElement('span');
+    span.textContent = ch === ' ' ? '\u00A0\u00A0' : ch;
+    titleTextEl.appendChild(span);
+    letterEls.push(span);
+  });
 
-    // Direct Timing for Slide Transitions During Music Playback
-    let lastSlideTransitionTime = 0;
-    const SLIDE_DURATION = 3000; // 3 seconds per photo transition
+  // ---------- Canvas sizing ----------
+  function resizeCanvas(){
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width  = window.innerWidth  * dpr;
+    canvas.height = window.innerHeight * dpr;
+    canvas.style.width  = window.innerWidth + 'px';
+    canvas.style.height = window.innerHeight + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+  window.addEventListener('resize', resizeCanvas);
+  resizeCanvas();
 
-    function resizeCanvas() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+  // ---------- Slideshow state ----------
+  let photos = [];
+  let currentIndex = 0;
+  let nextIndex = 0;
+  let transitioning = false;
+  let transitionStart = 0;
+  const TRANSITION_MS = 900;
+  const SLIDE_INTERVAL_MS = 3000;
+  let slideTimer = 0;
+  let frontLayerIsA = true;
+
+  function setLayerImage(layerEl, url){
+    layerEl.style.backgroundImage = url ? `url("${url}")` : 'none';
+  }
+
+  function initSlideshow(){
+    if(photos.length === 0) return;
+    currentIndex = 0;
+    nextIndex = photos.length > 1 ? 1 : 0;
+    frontLayerIsA = true;
+    setLayerImage(layerA, photos[currentIndex]);
+    layerA.style.opacity = 1;
+    setLayerImage(layerB, photos.length > 1 ? photos[nextIndex] : photos[currentIndex]);
+    layerB.style.opacity = 0;
+    transitioning = false;
+    slideTimer = 0;
+  }
+
+  photoInput.addEventListener('change', (e) => {
+    const files = Array.from(e.target.files || []);
+    if(files.length === 0) return;
+    photos.forEach(URL.revokeObjectURL);
+    photos = files.map(f => URL.createObjectURL(f));
+    initSlideshow();
+    updateHint();
+  });
+
+  function beginTransition(){
+    if(photos.length < 2){
+      slideTimer = 0;
+      return;
     }
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
+    const backLayer = frontLayerIsA ? layerB : layerA;
+    nextIndex = (currentIndex + 1) % photos.length;
+    setLayerImage(backLayer, photos[nextIndex]);
+    backLayer.style.opacity = 0;
+    transitioning = true;
+    transitionStart = performance.now();
+  }
 
-    function setupWebAudio() {
-      if (isAudioSetup) return;
-      try {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        analyser = audioCtx.createAnalyser();
-        analyser.fftSize = 256;
-        analyser.smoothingTimeConstant = 0.3;
-
-        source = audioCtx.createMediaElementSource(audioElement);
-        source.connect(analyser);
-        analyser.connect(audioCtx.destination);
-
-        freqData = new Uint8Array(analyser.frequencyBinCount);
-        isAudioSetup = true;
-      } catch (e) {
-        console.warn("Audio setup error:", e);
-      }
+  function updateTransition(now){
+    if(!transitioning) return;
+    const t = Math.min(1, (now - transitionStart) / TRANSITION_MS);
+    const frontLayer = frontLayerIsA ? layerA : layerB;
+    const backLayer  = frontLayerIsA ? layerB : layerA;
+    frontLayer.style.opacity = String(1 - t);
+    backLayer.style.opacity  = String(t);
+    if(t >= 1){
+      transitioning = false;
+      frontLayerIsA = !frontLayerIsA;
+      currentIndex = nextIndex;
     }
+  }
 
-    function triggerNextSlide() {
-      if (slides.length <= 1) return;
+  function activeLayer(){
+    return frontLayerIsA ? layerA : layerB;
+  }
 
-      slides[currentSlide].classList.remove('active', 'beat-snap');
-      currentSlide = (currentSlide + 1) % slides.length;
-      slides[currentSlide].classList.add('active');
+  // ---------- Audio file loading ----------
+  audioInput.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    const url = URL.createObjectURL(file);
+    audioPlayer.src = url;
+    audioPlayer.load();
+    fileNameEl.textContent = file.name;
+    updateHint();
+  });
+
+  // ---------- Web Audio API setup ----------
+  let audioCtx = null;
+  let analyser = null;
+  let sourceNode = null;
+  let dataArray = null;
+  let bufferLength = 0;
+  let audioReady = false;
+  let isPlaying = false;
+
+  function ensureAudioGraph(){
+    if(audioReady) return;
+    const AC = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AC();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
+    bufferLength = analyser.frequencyBinCount;
+    dataArray = new Uint8Array(bufferLength);
+    sourceNode = audioCtx.createMediaElementSource(audioPlayer);
+    sourceNode.connect(analyser);
+    analyser.connect(audioCtx.destination);
+    audioReady = true;
+  }
+
+  audioPlayer.addEventListener('play', () => {
+    ensureAudioGraph();
+    if(audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    isPlaying = true;
+    lastFrameTime = performance.now();
+  });
+  audioPlayer.addEventListener('pause', () => { isPlaying = false; });
+  audioPlayer.addEventListener('ended', () => { isPlaying = false; });
+
+  function updateHint(){
+    const hasPhotos = photos.length > 0;
+    const hasAudio  = !!audioPlayer.src;
+    if(hasPhotos && hasAudio){
+      hintEl.style.display = 'none';
+    } else {
+      hintEl.style.display = 'block';
+      hintEl.textContent = (!hasPhotos && !hasAudio)
+        ? 'Upload photos and choose a track to begin'
+        : (!hasPhotos ? 'Now add some photos' : 'Now choose a track');
     }
+  }
 
-    imageFileInput.addEventListener('change', function() {
-      const files = this.files;
-      if (files.length === 0) return;
+  // ---------- Beat detection (adaptive threshold) ----------
+  const bassHistory = [];
+  const HISTORY_LEN = 45;
+  let lastBeatTime = 0;
+  const BEAT_COOLDOWN_MS = 150;
+  const MIN_BASS_FLOOR = 26;
 
-      slideshowContainer.innerHTML = '';
-      currentSlide = 0;
+  function getBassEnergy(){
+    let sum = 0;
+    for(let i = 0; i <= 4; i++) sum += dataArray[i];
+    return sum / 5;
+  }
 
-      Array.from(files).forEach((file, idx) => {
-        const img = document.createElement('img');
-        img.src = URL.createObjectURL(file);
-        if (idx === 0) img.classList.add('active');
-        slideshowContainer.appendChild(img);
+  function detectBeat(bass, now){
+    bassHistory.push(bass);
+    if(bassHistory.length > HISTORY_LEN) bassHistory.shift();
+    const mean = bassHistory.reduce((a,b)=>a+b,0) / bassHistory.length;
+    let variance = 0;
+    for(const v of bassHistory) variance += (v - mean) * (v - mean);
+    variance /= bassHistory.length;
+    const stdDev = Math.sqrt(variance);
+    const threshold = mean + stdDev * 1.4;
+    if(bass > threshold && bass > MIN_BASS_FLOOR && (now - lastBeatTime) > BEAT_COOLDOWN_MS){
+      lastBeatTime = now;
+      return true;
+    }
+    return false;
+  }
+
+  function triggerBeatEffects(){
+    const layer = activeLayer();
+    layer.classList.remove('beat-snap');
+    void layer.offsetWidth; // restart animation
+    layer.classList.add('beat-snap');
+
+    flashOverlay.style.transition = 'none';
+    flashOverlay.style.opacity = '0.65';
+    void flashOverlay.offsetWidth;
+    flashOverlay.style.transition = 'opacity 220ms ease-out';
+    flashOverlay.style.opacity = '0';
+  }
+
+  // ---------- Particle system ----------
+  let particles = [];
+  const letterCooldowns = new Array(letterEls.length).fill(0);
+  const PARTICLE_THRESHOLD = 0.62;
+  const LETTER_COOLDOWN_MS = 110;
+
+  function spawnParticles(x, y, hue){
+    const count = 2 + Math.floor(Math.random() * 3);
+    for(let i = 0; i < count; i++){
+      particles.push({
+        x: x + (Math.random() * 16 - 8),
+        y: y,
+        vx: (Math.random() - 0.5) * 1.4,
+        vy: Math.random() * 1.2 + 0.4,
+        radius: Math.random() * 2.5 + 1.5,
+        alpha: 1,
+        hue: hue + (Math.random() * 30 - 15)
       });
+    }
+  }
 
-      slides = document.querySelectorAll('.bg-slideshow img');
-      lastSlideTransitionTime = performance.now();
-    });
-
-    audioFileInput.addEventListener('change', function() {
-      if (this.files.length > 0) {
-        audioElement.src = URL.createObjectURL(this.files[0]);
-        audioElement.play();
-      }
-    });
-
-    audioElement.addEventListener('play', () => {
-      setupWebAudio();
-      if (audioCtx && audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
-      lastSlideTransitionTime = performance.now();
-      renderLoop();
-    });
-
-    class Particle {
-      constructor(x, y, hue) {
-        this.x = x + (Math.random() - 0.5) * 12;
-        this.y = y;
-        this.size = Math.random() * 2.5 + 1;
-        this.speedY = Math.random() * 2.5 + 1.5;
-        this.speedX = (Math.random() - 0.5) * 1.2;
-        this.hue = hue;
-        this.opacity = 1;
-      }
-
-      update() {
-        this.y += this.speedY;
-        this.x += this.speedX;
-        this.opacity -= 0.022;
-      }
-
-      draw() {
-        ctx.fillStyle = `hsla(${this.hue}, 100%, 75%, ${this.opacity})`;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-        ctx.fill();
+  function updateParticles(){
+    for(let i = particles.length - 1; i >= 0; i--){
+      const p = particles[i];
+      p.vy += 0.045;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.alpha -= 0.012;
+      p.hue += 0.6;
+      if(p.alpha <= 0 || p.y > window.innerHeight + 20){
+        particles.splice(i, 1);
       }
     }
+    if(particles.length > 600) particles.splice(0, particles.length - 600);
+  }
 
-    function renderLoop() {
-      if (audioElement.paused) return;
-
-      const now = performance.now();
-      baseHue = (baseHue + 0.8) % 360;
-
-      // 1. Photo Transition Engine (Loops continuous photos every 3 seconds while music plays)
-      if (now - lastSlideTransitionTime >= SLIDE_DURATION) {
-        triggerNextSlide();
-        lastSlideTransitionTime = now;
-      }
-
-      // 2. Music Bass Detection Engine
-      if (isAudioSetup && analyser && freqData) {
-        analyser.getByteFrequencyData(freqData);
-
-        const currentBassEnergy = (freqData[0] + freqData[1] + freqData[2] + freqData[3] + freqData[4]) / 5;
-        const avgEnergy = energyBuffer.length > 0 
-          ? energyBuffer.reduce((a, b) => a + b, 0) / energyBuffer.length 
-          : 100;
-
-        const dynamicThreshold = Math.max(70, avgEnergy * 1.25);
-
-        // Beat Snap pulse effect on current image
-        if (currentBassEnergy > dynamicThreshold && (now - lastBeatTime > 220)) {
-          lastBeatTime = now;
-          
-          if (slides[currentSlide]) {
-            slides[currentSlide].classList.remove('beat-snap');
-            void slides[currentSlide].offsetWidth; // CSS Reflow
-            slides[currentSlide].classList.add('beat-snap');
-          }
-
-          flashOverlay.style.background = `hsla(${baseHue}, 100%, 80%, 0.15)`;
-          flashOverlay.style.opacity = '1';
-          setTimeout(() => { flashOverlay.style.opacity = '0'; }, 40);
-        }
-
-        energyBuffer.push(currentBassEnergy);
-        if (energyBuffer.length > BUFFER_SIZE) energyBuffer.shift();
-      }
-
-      // 3. Render Canvas & Spectrum Text
-      ctx.fillStyle = 'rgba(2, 4, 10, 0.22)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-      letters.forEach((letter, index) => {
-        let intensity = 0.2;
-
-        if (isAudioSetup && freqData) {
-          const binIndex = Math.floor((index / letters.length) * (freqData.length / 2));
-          intensity = (freqData[binIndex] || 0) / 255;
-        } else {
-          intensity = (Math.sin(now * 0.004 + index * 0.5) + 1) / 2;
-        }
-
-        const letterHue = (baseHue + index * 14 + intensity * 40) % 360;
-        const translateY = intensity * -38;
-        const baseColor = `hsl(${letterHue}, 100%, 75%)`;
-
-        letter.style.transform = `translateY(${translateY}px) scale(${1 + intensity * 0.15})`;
-        letter.style.color = baseColor;
-        letter.style.textShadow = `0 0 ${10 + intensity * 20}px ${baseColor}`;
-
-        if (intensity > 0.3) {
-          const rect = letter.getBoundingClientRect();
-          for (let i = 0; i < Math.floor(intensity * 2); i++) {
-            particles.push(new Particle(rect.left + rect.width / 2, rect.bottom, letterHue));
-          }
-        }
-      });
-
-      for (let i = particles.length - 1; i >= 0; i--) {
-        particles[i].update();
-        particles[i].draw();
-        if (particles[i].opacity <= 0) {
-          particles.splice(i, 1);
-        }
-      }
-
-      requestAnimationFrame(renderLoop);
+  function drawParticles(){
+    ctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    for(const p of particles){
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${p.hue}, 90%, 65%, ${Math.max(0, p.alpha)})`;
+      ctx.fill();
     }
-  </script>
+  }
+
+  // ---------- Spectrum-driven typography ----------
+  function updateTitleSpectrum(now){
+    const n = letterEls.length;
+    for(let i = 0; i < n; i++){
+      const el = letterEls[i];
+      if(!analyser){
+        el.style.transform = '';
+        el.style.color = '#e8ecff';
+        el.style.textShadow = '0 0 12px rgba(125,211,252,0.25)';
+        continue;
+      }
+      const binIndex = Math.min(bufferLength - 1, Math.floor((i / n) * bufferLength * 0.6) + 2);
+      const amp = dataArray[binIndex] / 255;
+      const scale = 1 + amp * 0.55;
+      const lift = -amp * 26;
+      const hue = 195 + amp * 140;
+      el.style.transform = `translateY(${lift}px) scale(${scale})`;
+      el.style.color = `hsl(${hue}, 92%, ${62 + amp * 18}%)`;
+      el.style.textShadow = `0 0 ${10 + amp * 22}px hsla(${hue}, 95%, 65%, ${0.35 + amp * 0.5})`;
+
+      if(amp > PARTICLE_THRESHOLD && (now - letterCooldowns[i]) > LETTER_COOLDOWN_MS){
+        letterCooldowns[i] = now;
+        const rect = el.getBoundingClientRect();
+        spawnParticles(rect.left + rect.width / 2, rect.bottom, hue);
+      }
+    }
+  }
+
+  // ---------- Main render loop ----------
+  let lastFrameTime = performance.now();
+
+  function animate(now){
+    const dt = now - lastFrameTime;
+    lastFrameTime = now;
+
+    if(isPlaying && analyser){
+      analyser.getByteFrequencyData(dataArray);
+
+      const bass = getBassEnergy();
+      if(detectBeat(bass, now)){
+        triggerBeatEffects();
+      }
+
+      slideTimer += dt;
+      if(!transitioning && slideTimer >= SLIDE_INTERVAL_MS && photos.length > 1){
+        beginTransition();
+        slideTimer = 0;
+      }
+      updateTransition(now);
+    }
+
+    updateTitleSpectrum(now);
+    updateParticles();
+    drawParticles();
+
+    requestAnimationFrame(animate);
+  }
+
+  requestAnimationFrame(animate);
+  updateHint();
+
+})();
+</script>
 </body>
 </html>
