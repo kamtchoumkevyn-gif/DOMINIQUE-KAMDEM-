@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DOMINIQUE KAMDEM - Adaptive Beat Visualizer</title>
+  <title>DOMINIQUE KAMDEM - Adaptive Visualizer</title>
   <style>
     * {
       box-sizing: border-box;
@@ -14,7 +15,7 @@
     body {
       background: #02040a;
       color: #ffffff;
-      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-family: 'Segoe UI', system-ui, sans-serif;
       display: flex;
       justify-content: center;
       align-items: center;
@@ -22,7 +23,7 @@
       overflow: hidden;
     }
 
-    /* Fullscreen Background Slideshow */
+    /* Background Slideshow */
     .bg-slideshow {
       position: absolute;
       top: 0;
@@ -43,7 +44,7 @@
       opacity: 0;
       filter: brightness(0.55) contrast(1.1);
       transform: scale(1);
-      transition: opacity 0.35s cubic-bezier(0.25, 1, 0.5, 1), transform 0.35s cubic-bezier(0.25, 1, 0.5, 1);
+      transition: opacity 0.3s cubic-bezier(0.25, 1, 0.5, 1), transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
     }
 
     .bg-slideshow img.active {
@@ -51,7 +52,7 @@
       transform: scale(1.05);
     }
 
-    /* Dynamic Beat Punch Snap */
+    /* Dynamic Beat Punch Animation */
     .bg-slideshow img.beat-snap {
       animation: snapZoom 0.2s cubic-bezier(0, 0.9, 0.1, 1) forwards;
     }
@@ -61,7 +62,7 @@
       100% { transform: scale(1.05); filter: brightness(0.55) contrast(1.1); }
     }
 
-    /* Flash Overlay for High Energy Beats */
+    /* Flash Overlay */
     #flash-overlay {
       position: absolute;
       top: 0;
@@ -75,7 +76,7 @@
       transition: opacity 0.05s ease-out;
     }
 
-    /* Interactive Particle Canvas */
+    /* Particle Canvas */
     #particle-canvas {
       position: absolute;
       top: 0;
@@ -86,7 +87,7 @@
       pointer-events: none;
     }
 
-    /* Main Non-Overlapping Container Stack */
+    /* UI Layout Stack */
     .container {
       position: relative;
       text-align: center;
@@ -121,7 +122,6 @@
       font-size: 0.85rem;
       font-weight: 600;
       backdrop-filter: blur(5px);
-      -webkit-backdrop-filter: blur(5px);
       transition: background 0.2s, transform 0.1s;
     }
 
@@ -137,7 +137,7 @@
       max-width: 320px;
     }
 
-    /* Animated Frequency Title Text */
+    /* Animated Text */
     #wave-text {
       font-size: clamp(1.2rem, 5vw, 3.5rem);
       font-weight: 900;
@@ -162,8 +162,8 @@
 <body>
 
   <div class="bg-slideshow" id="slideshow-container">
-    <img src="https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1200" class="active" alt="Default Image 1">
-    <img src="https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=1200" alt="Default Image 2">
+    <img src="https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=1200" class="active" alt="Default 1">
+    <img src="https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=1200" alt="Default 2">
   </div>
 
   <div id="flash-overlay"></div>
@@ -206,15 +206,15 @@
     let baseHue = 0;
     let particles = [];
 
-    // Web Audio Engine
+    // Web Audio API Variables
     let audioCtx, analyser, source, freqData;
     let isAudioSetup = false;
 
-    // Adaptive Tempo Engine Variables
+    // Adaptive Tempo Engine Memory
     let energyBuffer = [];
-    const BUFFER_SIZE = 45;
-    let beatIntervals = [];
-    let adaptiveInterval = 2000; // Fallback interval
+    const BUFFER_SIZE = 45; // Rolling history window
+    let beatIntervals = []; // Measured time gaps between detected peaks
+    let adaptiveInterval = 2000; // Default transition fallback speed (2s)
     let lastBeatTime = 0;
     let lastTransitionTime = 0;
 
@@ -240,7 +240,7 @@
         freqData = new Uint8Array(analyser.frequencyBinCount);
         isAudioSetup = true;
       } catch (e) {
-        console.warn("Audio Context initialized error:", e);
+        console.warn("AudioContext init warning:", e);
       }
     }
 
@@ -251,7 +251,7 @@
       currentSlide = (currentSlide + 1) % slides.length;
 
       const activeSlide = slides[currentSlide];
-      void activeSlide.offsetWidth; // Trigger reflow for animation restart
+      void activeSlide.offsetWidth; // Force CSS reflow
       activeSlide.classList.add('active', 'beat-snap');
 
       flashOverlay.style.background = `hsla(${hue}, 100%, 80%, 0.25)`;
@@ -316,6 +316,7 @@
       }
     }
 
+    // Adaptive Tempo Core Loop
     function renderLoop() {
       if (audioElement.paused) return;
 
@@ -327,26 +328,31 @@
       if (isAudioSetup && analyser && freqData) {
         analyser.getByteFrequencyData(freqData);
 
-        // Low frequency spectrum analysis
+        // Low frequency spectrum analysis (Bass/Kick domain)
         currentBassEnergy = (freqData[0] + freqData[1] + freqData[2] + freqData[3] + freqData[4]) / 5;
 
-        // Calculate average background energy dynamically
+        // Dynamic Mean Energy calculation
         const avgEnergy = energyBuffer.length > 0 
           ? energyBuffer.reduce((a, b) => a + b, 0) / energyBuffer.length 
           : 100;
 
+        // Adaptive Sensitivity Threshold
         const dynamicThreshold = Math.max(70, avgEnergy * 1.25);
 
-        // Transient Hit Detection Logic
+        // On Transient/Beat Hit Detection
         if (currentBassEnergy > dynamicThreshold && (now - lastBeatTime > 220)) {
           const delta = now - lastBeatTime;
           lastBeatTime = now;
 
+          // Track interval history for Tempo estimation
           if (delta < 2000) {
             beatIntervals.push(delta);
             if (beatIntervals.length > 8) beatIntervals.shift();
 
+            // Calculate current average tempo interval
             const avgInterval = beatIntervals.reduce((a, b) => a + b, 0) / beatIntervals.length;
+            
+            // Quantize transition speed: 2 or 4 bars depending on audio velocity
             adaptiveInterval = avgInterval > 600 ? avgInterval * 2 : avgInterval * 4;
           }
         }
@@ -355,17 +361,17 @@
         if (energyBuffer.length > BUFFER_SIZE) energyBuffer.shift();
       }
 
-      // Check adaptive interval timer
+      // Execute slide switch if tempo timer elapses
       if (now - lastTransitionTime >= adaptiveInterval) {
         triggerNextSlide(baseHue);
         lastTransitionTime = now;
       }
 
-      // Clear & redraw canvas frame
+      // Render Canvas Background & Particles
       ctx.fillStyle = 'rgba(2, 4, 10, 0.22)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Render letter wave spectrum & particle generation
+      // Render Text Spectrum Effects
       letters.forEach((letter, index) => {
         let intensity = 0.2;
 
@@ -392,7 +398,7 @@
         }
       });
 
-      // Update particle physics
+      // Update & Draw Particles
       for (let i = particles.length - 1; i >= 0; i--) {
         particles[i].update();
         particles[i].draw();
