@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>DOMINIQUE KAMDEM - Smooth Loop Visualizer</title>
+  <title>DOMINIQUE KAMDEM - Music Sync Visualizer</title>
   <style>
     * {
       box-sizing: border-box;
@@ -44,7 +43,7 @@
       opacity: 0;
       filter: brightness(0.55) contrast(1.1);
       transform: scale(1);
-      transition: opacity 0.5s ease-in-out, transform 0.5s ease-in-out;
+      transition: opacity 0.6s ease-in-out, transform 0.6s ease-in-out;
     }
 
     .bg-slideshow img.active {
@@ -52,13 +51,13 @@
       transform: scale(1.05);
     }
 
-    /* Dynamic Beat Punch Snap (Without changing the slide) */
+    /* Beat Pulse Effect */
     .bg-slideshow img.beat-snap {
-      animation: snapZoom 0.2s cubic-bezier(0, 0.9, 0.1, 1) forwards;
+      animation: snapZoom 0.22s cubic-bezier(0, 0.9, 0.1, 1) forwards;
     }
 
     @keyframes snapZoom {
-      0% { transform: scale(1.15); filter: brightness(0.8) contrast(1.2); }
+      0% { transform: scale(1.15); filter: brightness(0.85) contrast(1.25); }
       100% { transform: scale(1.05); filter: brightness(0.55) contrast(1.1); }
     }
 
@@ -209,7 +208,10 @@
     let energyBuffer = [];
     const BUFFER_SIZE = 45;
     let lastBeatTime = 0;
-    let slideTimer;
+
+    // Direct Timing for Slide Transitions During Music Playback
+    let lastSlideTransitionTime = 0;
+    const SLIDE_DURATION = 3000; // 3 seconds per photo transition
 
     function resizeCanvas() {
       canvas.width = window.innerWidth;
@@ -237,21 +239,13 @@
       }
     }
 
-    // Steady slideshow loop function
     function triggerNextSlide() {
-      if (slides.length <= 1) return; // Don't transition if only 1 image
+      if (slides.length <= 1) return;
 
       slides[currentSlide].classList.remove('active', 'beat-snap');
       currentSlide = (currentSlide + 1) % slides.length;
       slides[currentSlide].classList.add('active');
     }
-
-    // Start the automatic loop every 3.5 seconds
-    function startSlideshowLoop() {
-      if (slideTimer) clearInterval(slideTimer);
-      slideTimer = setInterval(triggerNextSlide, 3500); 
-    }
-    startSlideshowLoop();
 
     imageFileInput.addEventListener('change', function() {
       const files = this.files;
@@ -268,7 +262,7 @@
       });
 
       slides = document.querySelectorAll('.bg-slideshow img');
-      startSlideshowLoop(); // Restart timer for new images
+      lastSlideTransitionTime = performance.now();
     });
 
     audioFileInput.addEventListener('change', function() {
@@ -283,6 +277,7 @@
       if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume();
       }
+      lastSlideTransitionTime = performance.now();
       renderLoop();
     });
 
@@ -317,6 +312,13 @@
       const now = performance.now();
       baseHue = (baseHue + 0.8) % 360;
 
+      // 1. Photo Transition Engine (Loops continuous photos every 3 seconds while music plays)
+      if (now - lastSlideTransitionTime >= SLIDE_DURATION) {
+        triggerNextSlide();
+        lastSlideTransitionTime = now;
+      }
+
+      // 2. Music Bass Detection Engine
       if (isAudioSetup && analyser && freqData) {
         analyser.getByteFrequencyData(freqData);
 
@@ -327,13 +329,13 @@
 
         const dynamicThreshold = Math.max(70, avgEnergy * 1.25);
 
-        // Visual bounce effect on the current image (No longer switches the picture)
+        // Beat Snap pulse effect on current image
         if (currentBassEnergy > dynamicThreshold && (now - lastBeatTime > 220)) {
           lastBeatTime = now;
           
           if (slides[currentSlide]) {
             slides[currentSlide].classList.remove('beat-snap');
-            void slides[currentSlide].offsetWidth; // Reflow
+            void slides[currentSlide].offsetWidth; // CSS Reflow
             slides[currentSlide].classList.add('beat-snap');
           }
 
@@ -346,6 +348,7 @@
         if (energyBuffer.length > BUFFER_SIZE) energyBuffer.shift();
       }
 
+      // 3. Render Canvas & Spectrum Text
       ctx.fillStyle = 'rgba(2, 4, 10, 0.22)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
