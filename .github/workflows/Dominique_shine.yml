@@ -31,7 +31,7 @@ on:
     branches: [ "main" ]
 
 env:
-  AWS_REGION: MY_AWS_REGION                   # set this to your preferred AWS region, e.g. us-west-1
+  AWS_REGION: ${{ vars.AWS_REGION }}          # set this repository or production environment variable
   ECR_REPOSITORY: MY_ECR_REPOSITORY           # set this to your Amazon ECR repository name
   ECS_SERVICE: MY_ECS_SERVICE                 # set this to your Amazon ECS service name
   ECS_CLUSTER: MY_ECS_CLUSTER                 # set this to your Amazon ECS cluster name
@@ -52,6 +52,13 @@ jobs:
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+
+    - name: Validate AWS region
+      run: |
+        if [ -z "$AWS_REGION" ]; then
+          echo "::error::Set the AWS_REGION Actions variable for this repository or the production environment."
+          exit 1
+        fi
 
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v1
